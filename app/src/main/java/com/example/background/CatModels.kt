@@ -14,7 +14,9 @@ data class CatItem(
     val imagePath: String? = null,
     val stickerPath: String? = null,
     val posX: Float = 0f,
-    val posY: Float = 0f
+    val posY: Float = 0f,
+    // ✨ Tracks if the cat is visible in the Cat Room
+    val isInRoom: Boolean = true
 )
 
 data class NavItem(

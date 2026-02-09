@@ -1,13 +1,7 @@
 package com.example.background
 
 import android.content.Context
-import androidx.room.Dao
-import androidx.room.Database
-import androidx.room.Insert
-import androidx.room.Query
-import androidx.room.Room
-import androidx.room.RoomDatabase
-import androidx.room.Update
+import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -18,12 +12,14 @@ interface CatDao {
     @Insert
     suspend fun insertCat(cat: CatItem)
 
-    // ✨ NEW: This lets us save the new position!
     @Update
     suspend fun updateCat(cat: CatItem)
+
+    @Delete
+    suspend fun deleteCat(cat: CatItem)
 }
 
-@Database(entities = [CatItem::class], version = 2, exportSchema = false) // bumped version
+@Database(entities = [CatItem::class], version = 3, exportSchema = false)
 abstract class CatDatabase : RoomDatabase() {
     abstract fun catDao(): CatDao
 
@@ -33,7 +29,6 @@ abstract class CatDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): CatDatabase {
             return INSTANCE ?: synchronized(this) {
-                // fallbackToDestructiveMigration() wipes the db if schema changes (good for testing)
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     CatDatabase::class.java,

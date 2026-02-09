@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Log
-import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,7 +26,7 @@ class PixelCatViewModel : ViewModel() {
     var isProcessing by mutableStateOf(false)
     var statusMessage by mutableStateOf("Ready")
 
-    private val geminiApiKey = "AIzaSyAeok0SJ4F9d-qk_NffEmwOObhQclg1jnY"
+    private val geminiApiKey = "AIzaSyBzP3Uhmr2FBISgT7ZRexsWalK7ZdmRi7Y"
     private val pixelLabSecret = "4eae6276-1908-4989-8b5e-cb9499ad15e0"
     private val removeBgApiKey = "ezQZ4qm1YM2obsw5ULwx57Fb"
 
@@ -36,7 +35,6 @@ class PixelCatViewModel : ViewModel() {
         .readTimeout(180, TimeUnit.SECONDS)
         .build()
 
-    // ✨ Retaining Gemini 3 Flash Preview
     private val geminiModel = GenerativeModel(modelName = "gemini-3-flash-preview", apiKey = geminiApiKey)
 
     fun rescueCat(context: Context, originalBitmap: Bitmap, name: String, location: String, date: String, onComplete: () -> Unit) {
@@ -46,10 +44,7 @@ class PixelCatViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // 1. Save original high-res photo
                 val originalPath = saveImageToInternalStorage(context, originalBitmap, "photo_${System.currentTimeMillis()}")
-
-                // 2. Identify breed
                 val aiBitmap = Bitmap.createScaledBitmap(originalBitmap, 512, 512, true)
                 val response = geminiModel.generateContent(content {
                     image(aiBitmap)
@@ -57,16 +52,13 @@ class PixelCatViewModel : ViewModel() {
                 })
                 val detectedBreed = response.text?.trim() ?: "Cute Cat"
 
-                // 3. Generate Sticker
                 statusMessage = "Creating Sticker..."
                 val base64Sticker = generatePixelArt(aiBitmap, detectedBreed)
-
                 var finalStickerPath: String? = null
 
                 if (!base64Sticker.isNullOrEmpty()) {
                     val bytes = Base64.decode(base64Sticker, Base64.DEFAULT)
                     val pixelBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-
                     if (pixelBitmap != null) {
                         statusMessage = "Cleaning up..."
                         val transparent = removeBackground(pixelBitmap)
@@ -74,10 +66,8 @@ class PixelCatViewModel : ViewModel() {
                     }
                 }
 
-                // ✨ FALLBACK: If sticker path is still null (API failed), use the original photo path
                 val stickerToSave = if (finalStickerPath.isNullOrEmpty()) originalPath else finalStickerPath
 
-                // 4. Save to DB
                 CatDatabase.getDatabase(context).catDao().insertCat(
                     CatItem(
                         name = name,
@@ -85,7 +75,8 @@ class PixelCatViewModel : ViewModel() {
                         date = date,
                         breed = detectedBreed,
                         imagePath = originalPath,
-                        stickerPath = stickerToSave // Never black/null now
+                        stickerPath = stickerToSave,
+                        isInRoom = true
                     )
                 )
 
@@ -100,31 +91,43 @@ class PixelCatViewModel : ViewModel() {
         }
     }
 
+    // ✨ NEW: Hide from Room (Stay in Scrapbook) or Re-add to Room
+    fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = inRoom))
+        }
+    }
+
+    // ✨ NEW: Delete from both Room and Scrapbook permanently
+    fun deleteCatPermanently(context: Context, cat: CatItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            CatDatabase.getDatabase(context).catDao().deleteCat(cat)
+        }
+    }
+
+    fun saveCatPosition(context: Context, cat: CatItem, x: Float, y: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(posX = x, posY = y))
+        }
+    }
+
     private suspend fun generatePixelArt(reference: Bitmap, breed: String): String? = withContext(Dispatchers.IO) {
         val prompt = "A high-quality 8-bit pixel art sticker of a $breed cat, full body, white background, vector style."
         val json = JSONObject().apply {
             put("reference_image", bitmapToBase64(reference))
             put("description", prompt)
-            // ✨ STICKING TO 128x128 to satisfy PixelLab's 200px limit
             put("image_size", JSONObject().apply { put("width", 128); put("height", 128) })
             put("guidance_scale", 10.0)
         }
-
         val request = Request.Builder()
             .url("https://api.pixellab.ai/v1/generate-image-bitforge")
             .addHeader("Authorization", "Bearer $pixelLabSecret")
             .post(json.toString().toRequestBody("application/json".toMediaTypeOrNull()))
             .build()
-
         try {
             val response = client.newCall(request).execute()
             val body = response.body?.string()
-            if (response.isSuccessful && body != null) {
-                JSONObject(body).optJSONObject("image")?.optString("base64")
-            } else {
-                Log.e("PixelLab", "Error: $body")
-                null
-            }
+            if (response.isSuccessful && body != null) JSONObject(body).optJSONObject("image")?.optString("base64") else null
         } catch (e: Exception) { null }
     }
 
@@ -136,7 +139,6 @@ class PixelCatViewModel : ViewModel() {
             .build()
         val request = Request.Builder().url("https://api.remove.bg/v1.0/removebg")
             .addHeader("X-Api-Key", removeBgApiKey).post(body).build()
-
         try {
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
@@ -156,9 +158,5 @@ class PixelCatViewModel : ViewModel() {
         val stream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 40, stream)
         return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-    }
-
-    fun saveCatPosition(context: Context, cat: CatItem, x: Float, y: Float) {
-        viewModelScope.launch(Dispatchers.IO) { CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(posX = x, posY = y)) }
     }
 }

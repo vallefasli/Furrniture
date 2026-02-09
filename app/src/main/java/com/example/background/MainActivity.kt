@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -12,13 +13,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,6 +53,7 @@ fun StoryKittyApp() {
     val selectedScreen = remember { mutableStateOf<Screen>(CameraScreen) }
     val db = remember { CatDatabase.getDatabase(context) }
     val catList by db.catDao().getAllCats().collectAsState(initial = emptyList())
+    val pixelVm: PixelCatViewModel = viewModel() // ✨ Reference ViewModel here
     val scope = rememberCoroutineScope()
 
     val navItems = listOf(
@@ -67,7 +66,6 @@ fun StoryKittyApp() {
         Scaffold(
             containerColor = CozyCream,
             bottomBar = {
-                // Hide nav bar on sub-screens
                 if (selectedScreen.value !is AddCatScreen && selectedScreen.value !is SettingsScreen) {
                     InstagramBottomBar(
                         items = navItems,
@@ -85,7 +83,7 @@ fun StoryKittyApp() {
                         onNavigateToAddCat = { selectedScreen.value = AddCatScreen },
                         onNavigateToSettings = { selectedScreen.value = SettingsScreen }
                     )
-                    is CollectionScreen -> CollectionScreen(catList)
+                    is CollectionScreen -> CollectionScreen(catList, pixelVm) // ✨ Pass ViewModel
                     is AddCatScreen -> AddCatScreen(onCatSaved = { selectedScreen.value = CollectionScreen })
                     is CatStoryScreen -> CatRoomScreen(cats = catList)
                     is SettingsScreen -> SettingsScreen(
@@ -159,7 +157,6 @@ fun HomeScreen(onNavigateToAddCat: () -> Unit, onNavigateToSettings: () -> Unit)
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Ensure you have R.drawable.logo or replace with a generic Icon
             Image(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "Logo",
@@ -187,31 +184,53 @@ fun HomeScreen(onNavigateToAddCat: () -> Unit, onNavigateToSettings: () -> Unit)
 }
 
 @Composable
-fun CollectionScreen(cats: List<CatItem>) {
-    Box(modifier = Modifier
-        .fillMaxSize()
-        .background(CozyCream)) {
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)) {
+fun CollectionScreen(cats: List<CatItem>, pixelVm: PixelCatViewModel) {
+    val context = LocalContext.current
+    var catToDeleteByPermanent by remember { mutableStateOf<CatItem?>(null) }
+
+    // ✨ Permanent Delete Confirmation Dialog
+    if (catToDeleteByPermanent != null) {
+        Dialog(onDismissRequest = { catToDeleteByPermanent = null }) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CozyCream),
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.padding(16.dp).shadow(20.dp, RoundedCornerShape(28.dp))
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Delete Forever?", color = CozyBrown, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("This removes ${catToDeleteByPermanent?.name} from both the Scrapbook and Room permanently. 😿", color = CozyBrown.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        TextButton(onClick = { catToDeleteByPermanent = null }) { Text("Cancel", color = CozyBrown) }
+                        Button(
+                            onClick = {
+                                catToDeleteByPermanent?.let { pixelVm.deleteCatPermanently(context, it) }
+                                catToDeleteByPermanent = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                            shape = RoundedCornerShape(50.dp)
+                        ) { Text("Delete", color = Color.White) }
+                    }
+                }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(CozyCream)) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text(
                 "My Scrapbook",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = CozyBrown,
                 fontFamily = FontFamily.Cursive,
-                modifier = Modifier
-                    .padding(bottom = 24.dp, top = 8.dp)
-                    .align(Alignment.CenterHorizontally)
+                modifier = Modifier.padding(bottom = 24.dp, top = 8.dp).align(Alignment.CenterHorizontally)
             )
 
             if (cats.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Page is empty... \nGo rescue some cats! ✂️",
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
-                    )
+                    Text("Page is empty... \nGo rescue some cats! ✂️", color = Color.Gray, textAlign = TextAlign.Center)
                 }
             } else {
                 LazyVerticalGrid(
@@ -221,7 +240,12 @@ fun CollectionScreen(cats: List<CatItem>) {
                     contentPadding = PaddingValues(bottom = 80.dp, start = 4.dp, end = 4.dp)
                 ) {
                     items(cats) { cat ->
-                        ScrapbookItem(cat)
+                        // ✨ Pass callbacks for re-add and delete
+                        ScrapbookItem(
+                            cat = cat,
+                            onToggleRoom = { pixelVm.toggleCatRoomStatus(context, cat, !cat.isInRoom) },
+                            onDeletePermanently = { catToDeleteByPermanent = cat }
+                        )
                     }
                 }
             }
@@ -230,51 +254,60 @@ fun CollectionScreen(cats: List<CatItem>) {
 }
 
 @Composable
-fun ScrapbookItem(cat: CatItem) {
-    // Subtle rotation for a "hand-placed sticker" feel
+fun ScrapbookItem(cat: CatItem, onToggleRoom: () -> Unit, onDeletePermanently: () -> Unit) {
     val rotation = remember(cat.id) { (cat.id % 10).toFloat() - 5f }
 
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .rotate(rotation)) {
+    Box(modifier = Modifier.fillMaxWidth().rotate(rotation)) {
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             shape = RoundedCornerShape(2.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier
-                    .aspectRatio(1f)
-                    .fillMaxWidth()
-                    .background(Color.LightGray)) {
-                    AsyncImage(
-                        model = cat.imagePath,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                Box(modifier = Modifier.aspectRatio(1f).fillMaxWidth().background(Color.LightGray)) {
+                    AsyncImage(model = cat.imagePath, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = cat.name,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = CozyBrown,
-                    fontFamily = FontFamily.Cursive
-                )
-                Text(
-                    text = cat.breed ?: "Unknown",
-                    fontSize = 12.sp,
-                    color = CozyCoral,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = cat.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive)
+
+                // ✨ Buttons for Room Visibility and Permanent Deletion
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    IconButton(
+                        onClick = onToggleRoom,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(if (cat.isInRoom) CozyPeach.copy(alpha = 0.3f) else CozyCoral.copy(alpha = 0.1f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (cat.isInRoom) Icons.Default.Home else Icons.Default.Add,
+                            contentDescription = "Room Status",
+                            tint = if (cat.isInRoom) CozyBrown else CozyCoral,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDeletePermanently,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(Color.Red.copy(alpha = 0.1f), CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Permanent Delete",
+                            tint = Color.Red.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Place, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(10.dp))
                     Spacer(modifier = Modifier.width(2.dp))
@@ -284,15 +317,8 @@ fun ScrapbookItem(cat: CatItem) {
             }
         }
 
-        // Piece of "tape" at the top
-        Box(modifier = Modifier
-            .align(Alignment.TopCenter)
-            .width(40.dp)
-            .height(12.dp)
-            .background(CozyPeach.copy(alpha = 0.8f))
-        )
+        Box(modifier = Modifier.align(Alignment.TopCenter).width(40.dp).height(12.dp).background(CozyPeach.copy(alpha = 0.8f)))
 
-        // Miniature sticker preview if available
         if (cat.stickerPath != null) {
             AsyncImage(
                 model = cat.stickerPath,
