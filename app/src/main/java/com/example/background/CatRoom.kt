@@ -60,7 +60,6 @@ fun CatRoomScreen(
     // ✨ LOGIC: If Creative Mode is ON, unlock everything (5). Otherwise calculate normally.
     val unlockedCount = if (isCreativeMode) maxRooms else min(maxRooms, (cats.size / catsPerRoom) + 1)
 
-    // Ensure these drawables exist in res/drawable!
     val roomBackgrounds = listOf(
         R.drawable.livingroom, R.drawable.bedroom, R.drawable.garden, R.drawable.rooftop, R.drawable.basement
     )
@@ -81,38 +80,22 @@ fun CatRoomScreen(
     val pagerState = rememberPagerState(pageCount = { maxRooms })
     var isUiVisible by remember { mutableStateOf(true) }
 
-    // Safely load media player
     val mediaPlayer = remember {
-        try {
-            // Check if R.raw.cat_music exists, otherwise return null to prevent crash
-            val resId = context.resources.getIdentifier("cat_music", "raw", context.packageName)
-            if (resId != 0) {
-                MediaPlayer.create(context, resId)?.apply { isLooping = true }
-            } else {
-                null
-            }
-        } catch (e: Exception) { null }
+        try { MediaPlayer.create(context, R.raw.cat_music)?.apply { isLooping = true } } catch (e: Exception) { null }
     }
 
     DisposableEffect(Unit) {
-        if (isMusicEnabled) mediaPlayer?.start()
-        onDispose {
-            try {
-                if (mediaPlayer?.isPlaying == true) mediaPlayer.stop()
-                mediaPlayer?.release()
-            } catch (e: Exception) { /* ignore */ }
-        }
+        mediaPlayer?.start()
+        onDispose { mediaPlayer?.stop(); mediaPlayer?.release() }
     }
 
     // ✨ MUSIC LOGIC: Controlled ONLY by Settings now!
     LaunchedEffect(isMusicEnabled) {
-        try {
-            if (!isMusicEnabled) {
-                if (mediaPlayer?.isPlaying == true) mediaPlayer.pause()
-            } else {
-                if (mediaPlayer?.isPlaying == false) mediaPlayer.start()
-            }
-        } catch (e: Exception) { /* ignore */ }
+        if (!isMusicEnabled) {
+            mediaPlayer?.setVolume(0f, 0f)
+        } else {
+            mediaPlayer?.setVolume(1f, 1f)
+        }
     }
 
     Box(
@@ -126,8 +109,7 @@ fun CatRoomScreen(
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
             val roomCats = rooms.getOrElse(pageIndex) { emptyList() }
-            // Safe fallback if background doesn't exist
-            val bgImage = roomBackgrounds.getOrElse(pageIndex) { R.drawable.livingroom }
+            val bgImage = roomBackgrounds.getOrElse(pageIndex) { R.drawable.catssy }
             val colorMatrix = roomTints.getOrElse(pageIndex) { ColorMatrix() }
 
             val isLocked = (pageIndex + 1) > unlockedCount
@@ -205,6 +187,8 @@ fun CatRoomScreen(
                     }
                 }
 
+                // ✨ AUDIO BUTTON REMOVED FROM HERE
+
                 if (pagerState.currentPage > 0) {
                     IconButton(onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }, modifier = Modifier.align(Alignment.CenterStart).padding(16.dp).size(56.dp).background(CozyBrown, CircleShape).shadow(8.dp, CircleShape)) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Prev", tint = Color.White)
@@ -229,27 +213,10 @@ fun DraggableCatSticker(cat: CatItem, initialPosition: Offset, onDragEnd: (Offse
             .pointerInput(Unit) { detectDragGestures(onDragEnd = { onDragEnd(offset) }) { change, dragAmount -> change.consume(); offset += dragAmount } }
             .size(128.dp)
     ) {
-        // Use sticker if available, else fallback to image
         val path = cat.stickerPath ?: cat.imagePath
-        AsyncImage(
-            model = path,
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit
-        )
+        AsyncImage(model = path, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         if (showName) {
-            Text(
-                text = cat.name,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = CozyBrown,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-15).dp)
-                    .background(CozyCream.copy(alpha = 0.9f), shape = RoundedCornerShape(4.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                    .shadow(2.dp, RoundedCornerShape(4.dp))
-            )
+            Text(text = cat.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CozyBrown, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-15).dp).background(CozyCream.copy(alpha = 0.9f), shape = RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp).shadow(2.dp, RoundedCornerShape(4.dp)))
         }
     }
 }

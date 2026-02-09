@@ -24,7 +24,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-// ✨ FIX: This import allows .rotate() to work
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -39,11 +38,14 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { StoryKittyApp() }
+        setContent {
+            StoryKittyApp()
+        }
     }
 }
 
@@ -51,7 +53,6 @@ class MainActivity : ComponentActivity() {
 fun StoryKittyApp() {
     val context = LocalContext.current
     val selectedScreen = remember { mutableStateOf<Screen>(CameraScreen) }
-
     val db = remember { CatDatabase.getDatabase(context) }
     val catList by db.catDao().getAllCats().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
@@ -66,6 +67,7 @@ fun StoryKittyApp() {
         Scaffold(
             containerColor = CozyCream,
             bottomBar = {
+                // Hide nav bar on sub-screens
                 if (selectedScreen.value !is AddCatScreen && selectedScreen.value !is SettingsScreen) {
                     InstagramBottomBar(
                         items = navItems,
@@ -75,33 +77,25 @@ fun StoryKittyApp() {
                 }
             }
         ) { paddingValues ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
+            Box(modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)) {
                 when (selectedScreen.value) {
                     is CameraScreen -> HomeScreen(
                         onNavigateToAddCat = { selectedScreen.value = AddCatScreen },
                         onNavigateToSettings = { selectedScreen.value = SettingsScreen }
                     )
-
                     is CollectionScreen -> CollectionScreen(catList)
-
-                    // ✨ FIXED: This connects properly to the new AddCatScreen logic
-                    is AddCatScreen -> AddCatScreen(
-                        onCatSaved = {
-                            selectedScreen.value = CollectionScreen
-                        }
-                    )
-
+                    is AddCatScreen -> AddCatScreen(onCatSaved = { selectedScreen.value = CollectionScreen })
                     is CatStoryScreen -> CatRoomScreen(cats = catList)
-
                     is SettingsScreen -> SettingsScreen(
                         onBack = { selectedScreen.value = CameraScreen },
                         onDeleteAllCats = {
                             scope.launch(Dispatchers.IO) {
                                 db.clearAllTables()
+                                withContext(Dispatchers.Main) {
+                                    selectedScreen.value = CameraScreen
+                                }
                             }
                         }
                     )
@@ -114,7 +108,7 @@ fun StoryKittyApp() {
 @Composable
 fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen) -> Unit) {
     Column {
-        Divider(color = Color.LightGray.copy(alpha = 0.3f), thickness = 1.dp)
+        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f), thickness = 1.dp)
         NavigationBar(
             containerColor = Color.White,
             tonalElevation = 0.dp,
@@ -123,10 +117,20 @@ fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen
             items.forEach { item ->
                 val isSelected = item.screen == selected
                 NavigationBarItem(
-                    icon = { Icon(imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon, contentDescription = item.title, modifier = Modifier.size(28.dp)) },
+                    icon = {
+                        Icon(
+                            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                            contentDescription = item.title,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    },
                     selected = isSelected,
                     onClick = { onSelect(item.screen) },
-                    colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent, selectedIconColor = Color.Black, unselectedIconColor = Color.Gray),
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = Color.Transparent,
+                        selectedIconColor = Color.Black,
+                        unselectedIconColor = Color.Gray
+                    ),
                     label = null
                 )
             }
@@ -139,20 +143,31 @@ fun HomeScreen(onNavigateToAddCat: () -> Unit, onNavigateToSettings: () -> Unit)
     Box(modifier = Modifier.fillMaxSize()) {
         IconButton(
             onClick = onNavigateToSettings,
-            modifier = Modifier.align(Alignment.TopEnd).padding(24.dp).background(Color.White, CircleShape).shadow(4.dp, CircleShape)
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(24.dp)
+                .background(Color.White, CircleShape)
+                .shadow(4.dp, CircleShape)
         ) {
             Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = CozyBrown)
         }
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Ensure you have R.drawable.logo or replace with a generic Icon
             Image(
                 painter = painterResource(id = R.drawable.logo),
-                contentDescription = "App Logo",
-                modifier = Modifier.size(180.dp).shadow(12.dp, CircleShape).clip(CircleShape).background(Color.White)
+                contentDescription = "Logo",
+                modifier = Modifier
+                    .size(180.dp)
+                    .shadow(12.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(Color.White)
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text("Story Kitty 🐾", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CozyBrown)
@@ -160,7 +175,9 @@ fun HomeScreen(onNavigateToAddCat: () -> Unit, onNavigateToSettings: () -> Unit)
             Button(
                 onClick = onNavigateToAddCat,
                 colors = ButtonDefaults.buttonColors(containerColor = CozyCoral),
-                modifier = Modifier.size(220.dp, 70.dp).shadow(8.dp, RoundedCornerShape(20.dp)),
+                modifier = Modifier
+                    .size(220.dp, 70.dp)
+                    .shadow(8.dp, RoundedCornerShape(20.dp)),
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Text("📸  Rescue a Cat", fontSize = 18.sp, color = Color.White)
@@ -171,20 +188,30 @@ fun HomeScreen(onNavigateToAddCat: () -> Unit, onNavigateToSettings: () -> Unit)
 
 @Composable
 fun CollectionScreen(cats: List<CatItem>) {
-    Box(modifier = Modifier.fillMaxSize().background(CozyCream)) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(CozyCream)) {
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)) {
             Text(
                 "My Scrapbook",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = CozyBrown,
                 fontFamily = FontFamily.Cursive,
-                modifier = Modifier.padding(bottom = 24.dp, top = 8.dp).align(Alignment.CenterHorizontally)
+                modifier = Modifier
+                    .padding(bottom = 24.dp, top = 8.dp)
+                    .align(Alignment.CenterHorizontally)
             )
 
             if (cats.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Page is empty... \nGo rescue some cats! ✂️", color = Color.Gray, textAlign = TextAlign.Center)
+                    Text(
+                        "Page is empty... \nGo rescue some cats! ✂️",
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
                 }
             } else {
                 LazyVerticalGrid(
@@ -204,14 +231,12 @@ fun CollectionScreen(cats: List<CatItem>) {
 
 @Composable
 fun ScrapbookItem(cat: CatItem) {
-    // ✨ FIXED ROTATION: Explicitly convert Int to Float to avoid confusion
+    // Subtle rotation for a "hand-placed sticker" feel
     val rotation = remember(cat.id) { (cat.id % 10).toFloat() - 5f }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .rotate(rotation) // This should work now
-    ) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .rotate(rotation)) {
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             shape = RoundedCornerShape(2.dp),
@@ -224,7 +249,10 @@ fun ScrapbookItem(cat: CatItem) {
                 modifier = Modifier.padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier.aspectRatio(1f).fillMaxWidth().background(Color.LightGray)) {
+                Box(modifier = Modifier
+                    .aspectRatio(1f)
+                    .fillMaxWidth()
+                    .background(Color.LightGray)) {
                     AsyncImage(
                         model = cat.imagePath,
                         contentDescription = null,
@@ -232,9 +260,7 @@ fun ScrapbookItem(cat: CatItem) {
                         contentScale = ContentScale.Crop
                     )
                 }
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = cat.name,
                     fontSize = 20.sp,
@@ -242,44 +268,31 @@ fun ScrapbookItem(cat: CatItem) {
                     color = CozyBrown,
                     fontFamily = FontFamily.Cursive
                 )
-
                 Text(
-                    text = cat.breed ?: "Unknown Breed",
+                    text = cat.breed ?: "Unknown",
                     fontSize = 12.sp,
                     color = CozyCoral,
                     fontWeight = FontWeight.Medium
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Place, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(10.dp))
                     Spacer(modifier = Modifier.width(2.dp))
-                    Text(
-                        text = cat.location,
-                        fontSize = 10.sp,
-                        color = Color.Gray,
-                        maxLines = 1
-                    )
+                    Text(text = cat.location, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
                 }
-                Text(
-                    text = cat.date,
-                    fontSize = 10.sp,
-                    color = Color.LightGray
-                )
+                Text(text = cat.date, fontSize = 10.sp, color = Color.LightGray)
             }
         }
 
-        // Washi Tape
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .width(40.dp)
-                .height(12.dp)
-                .background(CozyPeach.copy(alpha = 0.8f))
+        // Piece of "tape" at the top
+        Box(modifier = Modifier
+            .align(Alignment.TopCenter)
+            .width(40.dp)
+            .height(12.dp)
+            .background(CozyPeach.copy(alpha = 0.8f))
         )
 
-        // Pixel Sticker Overlay
+        // Miniature sticker preview if available
         if (cat.stickerPath != null) {
             AsyncImage(
                 model = cat.stickerPath,
@@ -289,9 +302,9 @@ fun ScrapbookItem(cat: CatItem) {
                     .offset(x = 10.dp, y = 10.dp)
                     .size(48.dp)
                     .rotate(-10f)
+                    .shadow(2.dp, CircleShape)
                     .background(Color.White, CircleShape)
                     .padding(2.dp)
-                    .shadow(2.dp, CircleShape)
             )
         }
     }

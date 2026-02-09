@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -24,11 +23,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import java.io.InputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AddCatScreen(
     onCatSaved: () -> Unit,
-    // ✨ FIX: Using PixelCatViewModel properly
     viewModel: PixelCatViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -38,62 +39,40 @@ fun AddCatScreen(
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        selectedUri = uri
-    }
+    ) { uri: Uri? -> selectedUri = uri }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .background(Color(0xFFF5F5F5)),
+        modifier = Modifier.fillMaxSize().padding(16.dp).background(Color(0xFFFDFCF0)),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "New Pixel Cat",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp),
-            color = Color(0xFF333333)
-        )
+        Text("Rescue Cat", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4E342E), modifier = Modifier.padding(vertical = 16.dp))
+
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp)
-                .background(Color.White, shape = RoundedCornerShape(12.dp))
-                .clickable { launcher.launch("image/*") },
+                .weight(1f)
+                .background(Color.White, RoundedCornerShape(12.dp))
+                .clickable { if (!viewModel.isProcessing) launcher.launch("image/*") },
             contentAlignment = Alignment.Center
         ) {
-            if (viewModel.generatedSticker != null) {
-                Image(
-                    bitmap = viewModel.generatedSticker!!.asImageBitmap(),
-                    contentDescription = "Sticker",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
-            } else if (selectedUri != null) {
-                Image(
-                    painter = rememberAsyncImagePainter(selectedUri),
-                    contentDescription = "Selected Image",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            if (selectedUri != null) {
+                Image(painter = rememberAsyncImagePainter(selectedUri), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
-                Text("Tap to select photo", color = Color.Gray)
+                Text("📸 Tap to add photo", fontSize = 18.sp, color = Color.Gray)
             }
 
             if (viewModel.isProcessing) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color.White)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(viewModel.statusMessage, color = Color.White)
+                        CircularProgressIndicator(color = Color(0xFFFF8A65))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(viewModel.statusMessage, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -103,67 +82,33 @@ fun AddCatScreen(
 
         Button(
             onClick = {
-                if (selectedUri != null && !viewModel.isProcessing) {
+                if (name.isNotEmpty() && selectedUri != null) {
                     try {
-                        val inputStream: InputStream? = context.contentResolver.openInputStream(selectedUri!!)
-                        val bitmap = BitmapFactory.decodeStream(inputStream)
-                        viewModel.identifyAndPixelate(context, bitmap) { }
+                        // ✨ FIX: Use .use { } to auto-close the stream (Fixes "Resource failed to call close")
+                        val bitmap = context.contentResolver.openInputStream(selectedUri!!)?.use { inputStream ->
+                            BitmapFactory.decodeStream(inputStream)
+                        }
+
+                        if (bitmap != null) {
+                            val today = SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date())
+                            viewModel.rescueCat(context, bitmap, name, location, today) {
+                                onCatSaved()
+                            }
+                        } else {
+                            Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
+                        }
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Image Error", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
                 } else {
-                    Toast.makeText(context, "Select an image first!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Add Name & Photo!", Toast.LENGTH_SHORT).show()
                 }
             },
-            enabled = !viewModel.isProcessing && selectedUri != null,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EE)),
-            modifier = Modifier.fillMaxWidth().height(50.dp)
+            enabled = !viewModel.isProcessing,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8A65))
         ) {
-            Text("✨ Generate Pixel Sticker")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Cat Name") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = location,
-            onValueChange = { location = it },
-            label = { Text("Location") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        if (viewModel.detectedBreed != null) {
-            Text(
-                text = "Detected: ${viewModel.detectedBreed}",
-                color = Color(0xFF6200EE),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 4.dp).align(Alignment.Start)
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(
-            onClick = {
-                if (name.isNotEmpty() && location.isNotEmpty()) {
-                    val inputStream = if (selectedUri != null) context.contentResolver.openInputStream(selectedUri!!) else null
-                    val originalBitmap = if (inputStream != null) BitmapFactory.decodeStream(inputStream) else null
-                    viewModel.saveCatToDatabase(context, name, location, "Today", originalBitmap)
-                    onCatSaved()
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03DAC5))
-        ) {
-            Text("Save Cat", color = Color.Black, fontWeight = FontWeight.Bold)
+            Text(if (viewModel.isProcessing) "Processing..." else "SAVE CAT 🐾", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

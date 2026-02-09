@@ -27,6 +27,6 @@ data class NavItem(
 sealed class Screen
 object CameraScreen : Screen()
 object CollectionScreen : Screen()
-object AddCatScreen : Screen()
 object CatStoryScreen : Screen()
-object SettingsScreen : Screen() // ✨ Added this!
+object AddCatScreen : Screen()
+object SettingsScreen : Screen()
