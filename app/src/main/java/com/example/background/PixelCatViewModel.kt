@@ -1,5 +1,4 @@
 package com.example.background
-
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -22,13 +21,24 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
+// ✨ NEW: Define the different rescue modes
+enum class RescueMode {
+    SIMPLE,
+    BREED_ONLY,
+    POLLINATION,
+    PIXEL_LAB
+}
+
 class PixelCatViewModel : ViewModel() {
     var isProcessing by mutableStateOf(false)
     var statusMessage by mutableStateOf("Ready")
 
-    private val geminiApiKey = "AIzaSyBzP3Uhmr2FBISgT7ZRexsWalK7ZdmRi7Y"
+    private val geminiApiKey = "AIzaSyAKTsYbzGg9_sd5aFlpeKQVO5bx6xu1q78"
+
     private val pixelLabSecret = "4eae6276-1908-4989-8b5e-cb9499ad15e0"
     private val removeBgApiKey = "ezQZ4qm1YM2obsw5ULwx57Fb"
+    private val pollinationsApiKey = "sk_WbnmIq8g9K1BVdo9GcGGdgxmPchgJZ3B"
+
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
@@ -37,7 +47,15 @@ class PixelCatViewModel : ViewModel() {
 
     private val geminiModel = GenerativeModel(modelName = "gemini-3-flash-preview", apiKey = geminiApiKey)
 
-    fun rescueCat(context: Context, originalBitmap: Bitmap, name: String, location: String, date: String, onComplete: () -> Unit) {
+    fun rescueCat(
+        context: Context,
+        originalBitmap: Bitmap,
+        name: String,
+        location: String,
+        date: String,
+        mode: RescueMode, // ✨ Accepts the mode
+        onComplete: () -> Unit
+    ) {
         if (isProcessing) return
         isProcessing = true
         statusMessage = "Analyzing Cat..."
@@ -45,38 +63,54 @@ class PixelCatViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val originalPath = saveImageToInternalStorage(context, originalBitmap, "photo_${System.currentTimeMillis()}")
-                val aiBitmap = Bitmap.createScaledBitmap(originalBitmap, 512, 512, true)
-                val response = geminiModel.generateContent(content {
-                    image(aiBitmap)
-                    text("Identify this cat's color and breed. Reply with ONLY 2 words.")
-                })
-                val detectedBreed = response.text?.trim() ?: "Cute Cat"
+                var detectedBreed = "Cute Cat"
+                var finalStickerPath: String? = originalPath
+                var canAddToRoom = true
 
-                statusMessage = "Creating Sticker..."
-                val base64Sticker = generatePixelArt(aiBitmap, detectedBreed)
-                var finalStickerPath: String? = null
+                if (mode != RescueMode.SIMPLE) {
+                    val aiBitmap = Bitmap.createScaledBitmap(originalBitmap, 512, 512, true)
+                    val response = geminiModel.generateContent(content {
+                        image(aiBitmap)
+                        text("Identify this cat's color and breed. Reply with ONLY 2 words.")
+                    })
+                    detectedBreed = response.text?.trim() ?: "Cute Cat"
 
-                if (!base64Sticker.isNullOrEmpty()) {
-                    val bytes = Base64.decode(base64Sticker, Base64.DEFAULT)
-                    val pixelBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (pixelBitmap != null) {
-                        statusMessage = "Cleaning up..."
-                        val transparent = removeBackground(pixelBitmap)
-                        finalStickerPath = saveImageToInternalStorage(context, transparent ?: pixelBitmap, "sticker_${System.currentTimeMillis()}")
+                    statusMessage = "Processing Image..."
+                    val processedBitmap: Bitmap? = when (mode) {
+                        RescueMode.BREED_ONLY -> {
+                            removeBackground(originalBitmap)
+                        }
+                        RescueMode.POLLINATION -> {
+                            val pollinated = generatePollinationsArt(detectedBreed)
+                            if (pollinated != null) removeBackground(pollinated) else removeBackground(originalBitmap)
+                        }
+                        RescueMode.PIXEL_LAB -> {
+                            val base64Sticker = generatePixelArt(aiBitmap, detectedBreed)
+                            if (!base64Sticker.isNullOrEmpty()) {
+                                val bytes = Base64.decode(base64Sticker, Base64.DEFAULT)
+                                val pixelBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                if (pixelBitmap != null) removeBackground(pixelBitmap) else removeBackground(aiBitmap)
+                            } else removeBackground(aiBitmap)
+                        }
+                        else -> null
                     }
-                }
 
-                val stickerToSave = if (finalStickerPath.isNullOrEmpty()) originalPath else finalStickerPath
+                    processedBitmap?.let {
+                        finalStickerPath = saveImageToInternalStorage(context, it, "sticker_${System.currentTimeMillis()}")
+                    }
+                } else {
+                    canAddToRoom = false
+                }
 
                 CatDatabase.getDatabase(context).catDao().insertCat(
                     CatItem(
                         name = name,
                         location = location,
                         date = date,
-                        breed = detectedBreed,
+                        breed = if (mode == RescueMode.SIMPLE) "Scrapbook Only" else detectedBreed,
                         imagePath = originalPath,
-                        stickerPath = stickerToSave,
-                        isInRoom = true
+                        stickerPath = finalStickerPath,
+                        isInRoom = canAddToRoom
                     )
                 )
 
@@ -91,24 +125,22 @@ class PixelCatViewModel : ViewModel() {
         }
     }
 
-    // ✨ NEW: Hide from Room (Stay in Scrapbook) or Re-add to Room
-    fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
-        viewModelScope.launch(Dispatchers.IO) {
-            CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = inRoom))
-        }
-    }
+    private suspend fun generatePollinationsArt(breed: String): Bitmap? = withContext(Dispatchers.IO) {
+        val prompt = "pixel art sticker of a $breed cat, white background, high quality 8-bit"
+        val url = "https://image.pollinations.ai/prompt/${prompt.replace(" ", "%20")}"
 
-    // ✨ NEW: Delete from both Room and Scrapbook permanently
-    fun deleteCatPermanently(context: Context, cat: CatItem) {
-        viewModelScope.launch(Dispatchers.IO) {
-            CatDatabase.getDatabase(context).catDao().deleteCat(cat)
-        }
-    }
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $pollinationsApiKey")
+            .build()
 
-    fun saveCatPosition(context: Context, cat: CatItem, x: Float, y: Float) {
-        viewModelScope.launch(Dispatchers.IO) {
-            CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(posX = x, posY = y))
-        }
+        try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val bytes = response.body?.bytes()
+                if (bytes != null) BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
+            } else null
+        } catch (e: Exception) { null }
     }
 
     private suspend fun generatePixelArt(reference: Bitmap, breed: String): String? = withContext(Dispatchers.IO) {
@@ -158,5 +190,23 @@ class PixelCatViewModel : ViewModel() {
         val stream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 40, stream)
         return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+    }
+
+    fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = inRoom))
+        }
+    }
+
+    fun deleteCatPermanently(context: Context, cat: CatItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            CatDatabase.getDatabase(context).catDao().deleteCat(cat)
+        }
+    }
+
+    fun saveCatPosition(context: Context, cat: CatItem, x: Float, y: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(posX = x, posY = y))
+        }
     }
 }

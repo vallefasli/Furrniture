@@ -1,19 +1,31 @@
 package com.example.background
 
-import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
-import android.widget.Toast
+import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
+import androidx.activity.result.launch
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -21,94 +33,241 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.rememberAsyncImagePainter
-import java.io.InputStream
+import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCatScreen(
     onCatSaved: () -> Unit,
-    viewModel: PixelCatViewModel = viewModel()
+    pixelVm: PixelCatViewModel = viewModel()
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
-    var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> selectedUri = uri }
+    // ✨ State for the new Rescue Modes
+    var selectedMode by remember { mutableStateOf(RescueMode.PIXEL_LAB) }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp).background(Color(0xFFFDFCF0)),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Rescue Cat", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4E342E), modifier = Modifier.padding(vertical = 16.dp))
+    val date = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date()) }
 
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = location, onValueChange = { location = it }, label = { Text("Location") }, modifier = Modifier.fillMaxWidth())
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color.White, RoundedCornerShape(12.dp))
-                .clickable { if (!viewModel.isProcessing) launcher.launch("image/*") },
-            contentAlignment = Alignment.Center
-        ) {
-            if (selectedUri != null) {
-                Image(painter = rememberAsyncImagePainter(selectedUri), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            bitmap = if (Build.VERSION.SDK_INT < 28) {
+                MediaStore.Images.Media.getBitmap(context.contentResolver, it)
             } else {
-                Text("📸 Tap to add photo", fontSize = 18.sp, color = Color.Gray)
-            }
-
-            if (viewModel.isProcessing) {
-                Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color(0xFFFF8A65))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(viewModel.statusMessage, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
+                val source = ImageDecoder.createSource(context.contentResolver, it)
+                ImageDecoder.decodeBitmap(source)
             }
         }
+    }
 
-        Spacer(modifier = Modifier.height(16.dp))
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { takenBitmap ->
+        if (takenBitmap != null) {
+            bitmap = takenBitmap
+        }
+    }
 
-        Button(
-            onClick = {
-                if (name.isNotEmpty() && selectedUri != null) {
-                    try {
-                        // ✨ FIX: Use .use { } to auto-close the stream (Fixes "Resource failed to call close")
-                        val bitmap = context.contentResolver.openInputStream(selectedUri!!)?.use { inputStream ->
-                            BitmapFactory.decodeStream(inputStream)
-                        }
-
-                        if (bitmap != null) {
-                            val today = SimpleDateFormat("MMM dd", Locale.getDefault()).format(Date())
-                            viewModel.rescueCat(context, bitmap, name, location, today) {
-                                onCatSaved()
-                            }
-                        } else {
-                            Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
-                        }
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Rescue Kitty", color = CozyBrown, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onCatSaved) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Exit", tint = CozyBrown)
                     }
-                } else {
-                    Toast.makeText(context, "Add Name & Photo!", Toast.LENGTH_SHORT).show()
-                }
-            },
-            enabled = !viewModel.isProcessing,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8A65))
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        },
+        containerColor = CozyCream
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(if (viewModel.isProcessing) "Processing..." else "SAVE CAT 🐾", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            // Image Preview Card
+            Card(
+                modifier = Modifier
+                    .size(220.dp)
+                    .padding(vertical = 16.dp)
+                    .shadow(8.dp, RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    if (bitmap != null) {
+                        AsyncImage(
+                            model = bitmap,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text("No Photo", color = CozyBrown.copy(alpha = 0.3f), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // Dual Upload Options
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { cameraLauncher.launch() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = CozyPeach),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Take Photo", color = CozyBrown)
+                }
+
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = CozyPeach),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Open Gallery", color = CozyBrown)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ✨ Rescue Mode Selection Section
+            Text(
+                "Select Rescue Method",
+                modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp),
+                fontWeight = FontWeight.Bold,
+                color = CozyBrown
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RescueOptionCard(
+                    title = "Standard (Pixel Lab)",
+                    description = "High-quality 8-bit art. Fits Room perfectly.",
+                    isSelected = selectedMode == RescueMode.PIXEL_LAB,
+                    onClick = { selectedMode = RescueMode.PIXEL_LAB }
+                )
+                RescueOptionCard(
+                    title = "Simple Rescue",
+                    description = "No AI. Scrapbook only (Cannot add to Room).",
+                    isSelected = selectedMode == RescueMode.SIMPLE,
+                    onClick = { selectedMode = RescueMode.SIMPLE }
+                )
+                RescueOptionCard(
+                    title = "Breed Only",
+                    description = "Remove BG only. May not match Room aesthetic.",
+                    isSelected = selectedMode == RescueMode.BREED_ONLY,
+                    onClick = { selectedMode = RescueMode.BREED_ONLY }
+                )
+                RescueOptionCard(
+                    title = "Pollinations AI",
+                    description = "Experimental art. Results may be inconsistent.",
+                    isSelected = selectedMode == RescueMode.POLLINATION,
+                    onClick = { selectedMode = RescueMode.POLLINATION }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Details Inputs
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Kitty Name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CozyCoral,
+                            unfocusedBorderColor = CozyPeach,
+                            focusedLabelColor = CozyCoral
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = location,
+                        onValueChange = { location = it },
+                        label = { Text("Found At (Location)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CozyCoral,
+                            unfocusedBorderColor = CozyPeach,
+                            focusedLabelColor = CozyCoral
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Complete Rescue Button
+            Button(
+                onClick = {
+                    bitmap?.let {
+                        pixelVm.rescueCat(context, it, name, location, date, selectedMode) {
+                            onCatSaved()
+                        }
+                    }
+                },
+                enabled = name.isNotEmpty() && location.isNotEmpty() && bitmap != null && !pixelVm.isProcessing,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .shadow(8.dp, RoundedCornerShape(20.dp)),
+                colors = ButtonDefaults.buttonColors(containerColor = CozyCoral),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                if (pixelVm.isProcessing) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(pixelVm.statusMessage)
+                } else {
+                    Text("Complete Rescue", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+fun RescueOptionCard(
+    title: String,
+    description: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .border(
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) CozyCoral else Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
+            ),
+        color = if (isSelected) CozyPeach.copy(alpha = 0.2f) else Color.White,
+        shape = RoundedCornerShape(16.dp),
+        shadowElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, color = CozyBrown)
+            Text(description, fontSize = 11.sp, color = Color.Gray)
         }
     }
 }
