@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -21,7 +22,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
-// ✨ NEW: Define the different rescue modes
 enum class RescueMode {
     SIMPLE,
     BREED_ONLY,
@@ -33,12 +33,10 @@ class PixelCatViewModel : ViewModel() {
     var isProcessing by mutableStateOf(false)
     var statusMessage by mutableStateOf("Ready")
 
-    private val geminiApiKey = "AIzaSyAKTsYbzGg9_sd5aFlpeKQVO5bx6xu1q78"
-
-    private val pixelLabSecret = "4eae6276-1908-4989-8b5e-cb9499ad15e0"
-    private val removeBgApiKey = "ezQZ4qm1YM2obsw5ULwx57Fb"
+    private val geminiApiKey = "AIzaSyBOgtNNFTt9BGueDOhVmSKabUfozppK6LU"
+    private val pixelLabSecret = "e1ed6918-e7bf-48a7-8127-2613b7bee21f"
+    private val removeBgApiKey = "J6MA5aUb4NyKkAcBCwMHJeZK"
     private val pollinationsApiKey = "sk_WbnmIq8g9K1BVdo9GcGGdgxmPchgJZ3B"
-
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
@@ -53,12 +51,12 @@ class PixelCatViewModel : ViewModel() {
         name: String,
         location: String,
         date: String,
-        mode: RescueMode, // ✨ Accepts the mode
+        mode: RescueMode,
         onComplete: () -> Unit
     ) {
         if (isProcessing) return
         isProcessing = true
-        statusMessage = "Analyzing Cat..."
+        statusMessage = "Identifying Resident..."
 
         viewModelScope.launch {
             try {
@@ -67,15 +65,42 @@ class PixelCatViewModel : ViewModel() {
                 var finalStickerPath: String? = originalPath
                 var canAddToRoom = true
 
-                if (mode != RescueMode.SIMPLE) {
-                    val aiBitmap = Bitmap.createScaledBitmap(originalBitmap, 512, 512, true)
-                    val response = geminiModel.generateContent(content {
-                        image(aiBitmap)
-                        text("Identify this cat's color and breed. Reply with ONLY 2 words.")
-                    })
-                    detectedBreed = response.text?.trim() ?: "Cute Cat"
+                // ✨ 2. THE GATEKEEPER: Broader "Feline" Check
+                val aiBitmap = Bitmap.createScaledBitmap(originalBitmap, 512, 512, true)
 
-                    statusMessage = "Processing Image..."
+                val response = try {
+                    geminiModel.generateContent(content {
+                        image(aiBitmap)
+                        // ✨ UPDATED PROMPT: Explicitly accepts ANY feline (Lynx, Tiger, Lion, etc.)
+                        text("Is this a feline (domestic cat, lynx, tiger, lion, etc.)? If YES, return the specific species/breed in 2 words (e.g. 'Wild Lynx', 'Orange Tabby'). If NO, return 'REJECTED: [What is it?]'.")
+                    })
+                } catch (e: Exception) {
+                    null
+                }
+
+                val resultText = response?.text?.trim() ?: "Cute Cat"
+
+                // 🛑 REJECTION LOGIC
+                if (resultText.contains("REJECTED", ignoreCase = true)) {
+                    val objectName = resultText.substringAfter(":").trim()
+
+                    statusMessage = "Not a feline! 🐾"
+                    isProcessing = false
+
+                    // ✨ POP-UP: Shows exactly what it detected (e.g. "Wait! That looks like a Dog!")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Wait! That looks like a $objectName! 🐶 This app is for felines only!", Toast.LENGTH_LONG).show()
+                    }
+
+                    File(originalPath).delete()
+                    return@launch
+                }
+
+                detectedBreed = resultText
+
+                // 3. Generate Sticker
+                if (mode != RescueMode.SIMPLE) {
+                    statusMessage = "Designing Sticker..."
                     val processedBitmap: Bitmap? = when (mode) {
                         RescueMode.BREED_ONLY -> {
                             removeBackground(originalBitmap)
@@ -102,23 +127,26 @@ class PixelCatViewModel : ViewModel() {
                     canAddToRoom = false
                 }
 
+                // 4. Save to Database
                 CatDatabase.getDatabase(context).catDao().insertCat(
                     CatItem(
                         name = name,
                         location = location,
                         date = date,
-                        breed = if (mode == RescueMode.SIMPLE) "Scrapbook Only" else detectedBreed,
+                        breed = detectedBreed,
                         imagePath = originalPath,
                         stickerPath = finalStickerPath,
-                        isInRoom = canAddToRoom
+                        isInRoom = canAddToRoom,
+                        roomIndex = 0
                     )
                 )
 
-                statusMessage = "Rescued! ✨"
+                statusMessage = "Welcome Home! 🛋️"
                 onComplete()
+
             } catch (e: Exception) {
                 Log.e("PixelCat", "Error: ${e.message}")
-                statusMessage = "Error"
+                statusMessage = "Connection Error"
             } finally {
                 isProcessing = false
             }
@@ -126,7 +154,7 @@ class PixelCatViewModel : ViewModel() {
     }
 
     private suspend fun generatePollinationsArt(breed: String): Bitmap? = withContext(Dispatchers.IO) {
-        val prompt = "pixel art sticker of a $breed cat, white background, high quality 8-bit"
+        val prompt = "pixel art sticker of a $breed cat, cozy home lighting, white background, high quality 8-bit"
         val url = "https://image.pollinations.ai/prompt/${prompt.replace(" ", "%20")}"
 
         val request = Request.Builder()
@@ -144,7 +172,7 @@ class PixelCatViewModel : ViewModel() {
     }
 
     private suspend fun generatePixelArt(reference: Bitmap, breed: String): String? = withContext(Dispatchers.IO) {
-        val prompt = "A high-quality 8-bit pixel art sticker of a $breed cat, full body, white background, vector style."
+        val prompt = "A high-quality 8-bit pixel art sticker of a $breed cat, sitting pose, cozy interior lighting, white background, vector style."
         val json = JSONObject().apply {
             put("reference_image", bitmapToBase64(reference))
             put("description", prompt)
@@ -193,6 +221,21 @@ class PixelCatViewModel : ViewModel() {
     }
 
     fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
+        // ✨ SAFETY CHECK: If the sticker path is the same as the image path,
+        // it means this is a SIMPLE capture (no background removed).
+        // We MUST prevent it from entering the room.
+        if (cat.stickerPath == cat.imagePath) {
+            viewModelScope.launch(Dispatchers.Main) {
+                Toast.makeText(context, "Simple photos can't go in the Room! 🖼️", Toast.LENGTH_SHORT).show()
+            }
+            // Force status to FALSE in database just in case
+            viewModelScope.launch(Dispatchers.IO) {
+                CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = false))
+            }
+            return
+        }
+
+        // Normal behavior for valid stickers
         viewModelScope.launch(Dispatchers.IO) {
             CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = inRoom))
         }
@@ -207,6 +250,13 @@ class PixelCatViewModel : ViewModel() {
     fun saveCatPosition(context: Context, cat: CatItem, x: Float, y: Float) {
         viewModelScope.launch(Dispatchers.IO) {
             CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(posX = x, posY = y))
+        }
+    }
+
+    fun moveCatToRoom(context: Context, cat: CatItem, newRoomIndex: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updatedCat = cat.copy(roomIndex = newRoomIndex)
+            CatDatabase.getDatabase(context).catDao().updateCat(updatedCat)
         }
     }
 }

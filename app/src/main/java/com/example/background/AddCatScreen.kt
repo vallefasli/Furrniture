@@ -73,7 +73,7 @@ fun AddCatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Rescue Kitty", color = CozyBrown, fontWeight = FontWeight.Bold) },
+                title = { Text("New Resident", color = CozyBrown, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onCatSaved) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Exit", tint = CozyBrown)
@@ -92,12 +92,21 @@ fun AddCatScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Image Preview Card
+            // ✨ UPDATED IMAGE PREVIEW CARD
+            // Logic: If bitmap exists, fit width and use image aspect ratio. Else use square placeholder.
             Card(
                 modifier = Modifier
-                    .size(220.dp)
                     .padding(vertical = 16.dp)
-                    .shadow(8.dp, RoundedCornerShape(24.dp)),
+                    .shadow(8.dp, RoundedCornerShape(24.dp))
+                    .then(
+                        if (bitmap != null) {
+                            Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(bitmap!!.width.toFloat() / bitmap!!.height.toFloat())
+                        } else {
+                            Modifier.size(220.dp)
+                        }
+                    ),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
@@ -107,7 +116,7 @@ fun AddCatScreen(
                             model = bitmap,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Fit // ✨ Fits the image perfectly without cropping
                         )
                     } else {
                         Text("No Photo", color = CozyBrown.copy(alpha = 0.3f), fontWeight = FontWeight.Bold)
@@ -143,7 +152,7 @@ fun AddCatScreen(
 
             // ✨ Rescue Mode Selection Section
             Text(
-                "Select Rescue Method",
+                "Select Method",
                 modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp),
                 fontWeight = FontWeight.Bold,
                 color = CozyBrown
@@ -151,26 +160,26 @@ fun AddCatScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RescueOptionCard(
-                    title = "Standard (Pixel Lab)",
-                    description = "High-quality 8-bit art. Fits Room perfectly.",
+                    title = "High Quality",
+                    description = "8-bit art. Fits Room perfectly.",
                     isSelected = selectedMode == RescueMode.PIXEL_LAB,
                     onClick = { selectedMode = RescueMode.PIXEL_LAB }
                 )
                 RescueOptionCard(
-                    title = "Simple Rescue",
-                    description = "No AI. Scrapbook only (Cannot add to Room).",
+                    title = "Simple",
+                    description = "Adds to meow-ments only (Cannot add to Room).",
                     isSelected = selectedMode == RescueMode.SIMPLE,
                     onClick = { selectedMode = RescueMode.SIMPLE }
                 )
                 RescueOptionCard(
-                    title = "Breed Only",
-                    description = "Remove BG only. May not match Room aesthetic.",
+                    title = "Removes BG",
+                    description = "Removes background only. May not match Room aesthetic.",
                     isSelected = selectedMode == RescueMode.BREED_ONLY,
                     onClick = { selectedMode = RescueMode.BREED_ONLY }
                 )
                 RescueOptionCard(
-                    title = "Pollinations AI",
-                    description = "Experimental art. Results may be inconsistent.",
+                    title = "Experimental",
+                    description = "Experimental AI art. Results may be inconsistent.",
                     isSelected = selectedMode == RescueMode.POLLINATION,
                     onClick = { selectedMode = RescueMode.POLLINATION }
                 )

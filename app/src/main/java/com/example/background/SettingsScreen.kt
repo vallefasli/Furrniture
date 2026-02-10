@@ -31,7 +31,6 @@ fun SettingsScreen(onBack: () -> Unit, onDeleteAllCats: () -> Unit) {
             .background(CozyCream)
             .padding(24.dp)
     ) {
-        // Header
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 32.dp)
@@ -47,12 +46,11 @@ fun SettingsScreen(onBack: () -> Unit, onDeleteAllCats: () -> Unit) {
             )
         }
 
-        // --- Audio Section ---
         SettingsSectionHeader("Audio")
         SettingsCard {
             SettingsToggle(
                 title = "Background Music",
-                description = "Play relaxing tunes in Cat Room",
+                description = "Play relaxing tunes in Rooms",
                 checked = musicEnabled,
                 onCheckedChange = {
                     musicEnabled = it
@@ -63,7 +61,6 @@ fun SettingsScreen(onBack: () -> Unit, onDeleteAllCats: () -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Gameplay Section ---
         SettingsSectionHeader("Gameplay")
         SettingsCard {
             SettingsToggle(
@@ -79,7 +76,6 @@ fun SettingsScreen(onBack: () -> Unit, onDeleteAllCats: () -> Unit) {
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // --- Danger Zone ---
         Text(
             "Danger Zone",
             color = Color(0xFFD32F2F),
@@ -97,7 +93,7 @@ fun SettingsScreen(onBack: () -> Unit, onDeleteAllCats: () -> Unit) {
         ) {
             Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFD32F2F))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Reset Game Progress", color = Color(0xFFD32F2F), fontWeight = FontWeight.Bold)
+            Text("Evict All Residents", color = Color(0xFFD32F2F), fontWeight = FontWeight.Bold)
         }
     }
 }

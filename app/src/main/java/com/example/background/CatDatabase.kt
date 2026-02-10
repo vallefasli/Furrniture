@@ -1,3 +1,5 @@
+
+
 package com.example.background
 
 import android.content.Context
@@ -19,7 +21,7 @@ interface CatDao {
     suspend fun deleteCat(cat: CatItem)
 }
 
-@Database(entities = [CatItem::class], version = 3, exportSchema = false)
+@Database(entities = [CatItem::class], version = 2, exportSchema = false)
 abstract class CatDatabase : RoomDatabase() {
     abstract fun catDao(): CatDao
 
