@@ -1,4 +1,5 @@
 package com.example.background
+
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -71,7 +73,6 @@ class PixelCatViewModel : ViewModel() {
                 val response = try {
                     geminiModel.generateContent(content {
                         image(aiBitmap)
-                        // ✨ UPDATED PROMPT: Explicitly accepts ANY feline (Lynx, Tiger, Lion, etc.)
                         text("Is this a feline (domestic cat, lynx, tiger, lion, etc.)? If YES, return the specific species/breed in 2 words (e.g. 'Wild Lynx', 'Orange Tabby'). If NO, return 'REJECTED: [What is it?]'.")
                     })
                 } catch (e: Exception) {
@@ -87,7 +88,6 @@ class PixelCatViewModel : ViewModel() {
                     statusMessage = "Not a feline! 🐾"
                     isProcessing = false
 
-                    // ✨ POP-UP: Shows exactly what it detected (e.g. "Wait! That looks like a Dog!")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "Wait! That looks like a $objectName! 🐶 This app is for felines only!", Toast.LENGTH_LONG).show()
                     }
@@ -137,18 +137,26 @@ class PixelCatViewModel : ViewModel() {
                         imagePath = originalPath,
                         stickerPath = finalStickerPath,
                         isInRoom = canAddToRoom,
-                        roomIndex = 0
+                        roomIndex = 0,
+                        posX = 200f, // ✨ Default room position
+                        posY = 600f
                     )
                 )
 
-                statusMessage = "Welcome Home! 🛋️"
-                onComplete()
+                // ✨ UI Feedback and Sequenced Navigation
+                withContext(Dispatchers.Main) {
+                    statusMessage = "Welcome Home! 🛋️"
+                    delay(800) // Brief delay so user sees the success message
+                    isProcessing = false
+                    onComplete() // Trigger navigation back to scrapbook
+                }
 
             } catch (e: Exception) {
-                Log.e("PixelCat", "Error: ${e.message}")
-                statusMessage = "Connection Error"
-            } finally {
-                isProcessing = false
+                withContext(Dispatchers.Main) {
+                    Log.e("PixelCat", "Error: ${e.message}")
+                    statusMessage = "Connection Error"
+                    isProcessing = false
+                }
             }
         }
     }
@@ -156,12 +164,7 @@ class PixelCatViewModel : ViewModel() {
     private suspend fun generatePollinationsArt(breed: String): Bitmap? = withContext(Dispatchers.IO) {
         val prompt = "pixel art sticker of a $breed cat, cozy home lighting, white background, high quality 8-bit"
         val url = "https://image.pollinations.ai/prompt/${prompt.replace(" ", "%20")}"
-
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("Authorization", "Bearer $pollinationsApiKey")
-            .build()
-
+        val request = Request.Builder().url(url).addHeader("Authorization", "Bearer $pollinationsApiKey").build()
         try {
             val response = client.newCall(request).execute()
             if (response.isSuccessful) {
@@ -221,21 +224,15 @@ class PixelCatViewModel : ViewModel() {
     }
 
     fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
-        // ✨ SAFETY CHECK: If the sticker path is the same as the image path,
-        // it means this is a SIMPLE capture (no background removed).
-        // We MUST prevent it from entering the room.
         if (cat.stickerPath == cat.imagePath) {
             viewModelScope.launch(Dispatchers.Main) {
                 Toast.makeText(context, "Simple photos can't go in the Room! 🖼️", Toast.LENGTH_SHORT).show()
             }
-            // Force status to FALSE in database just in case
             viewModelScope.launch(Dispatchers.IO) {
                 CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = false))
             }
             return
         }
-
-        // Normal behavior for valid stickers
         viewModelScope.launch(Dispatchers.IO) {
             CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = inRoom))
         }

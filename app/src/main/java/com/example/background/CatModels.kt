@@ -21,8 +21,8 @@ data class CatItem(
 
 data class NavItem(
     val title: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
+    val selectedIcon: Any,   // Using 'Any' allows both Icons and R.drawable.cameralogo
+    val unselectedIcon: Any,
     val screen: Screen
 )
 

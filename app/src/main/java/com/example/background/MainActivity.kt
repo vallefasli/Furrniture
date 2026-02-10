@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -56,9 +57,11 @@ fun StoryKittyApp() {
     val pixelVm: PixelCatViewModel = viewModel()
     val scope = rememberCoroutineScope()
 
+    // ✨ Updated NavItems: Added Rescue as the 4th item
     val navItems = listOf(
         NavItem("Home", Icons.Filled.Home, Icons.Outlined.Home, CameraScreen),
-        NavItem("Residents", Icons.Filled.Face, Icons.Outlined.Face, CollectionScreen),
+        NavItem("Rescue", R.drawable.logocamera, R.drawable.logocamera, AddCatScreen),
+        NavItem("Residents", R.drawable.logopet, R.drawable.logopet, AddCatScreen),
         NavItem("Rooms", Icons.Filled.Place, Icons.Outlined.Place, CatStoryScreen)
     )
 
@@ -66,7 +69,7 @@ fun StoryKittyApp() {
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = {
-                if (selectedScreen.value !is AddCatScreen && selectedScreen.value !is SettingsScreen) {
+                if (selectedScreen.value !is SettingsScreen) {
                     InstagramBottomBar(
                         items = navItems,
                         selected = selectedScreen.value,
@@ -79,7 +82,6 @@ fun StoryKittyApp() {
                 when (selectedScreen.value) {
                     is CameraScreen -> HomeScreen(
                         catList = catList,
-                        onNavigateToAddCat = { selectedScreen.value = AddCatScreen },
                         onNavigateToSettings = { selectedScreen.value = SettingsScreen }
                     )
                     is CollectionScreen -> CollectionScreen(catList, pixelVm)
@@ -101,7 +103,7 @@ fun StoryKittyApp() {
 }
 
 @Composable
-fun HomeScreen(catList: List<CatItem>, onNavigateToAddCat: () -> Unit, onNavigateToSettings: () -> Unit) {
+fun HomeScreen(catList: List<CatItem>, onNavigateToSettings: () -> Unit) {
     val activeCats = catList.filter { it.isInRoom }
     var currentCatIndex by remember { mutableIntStateOf(0) }
 
@@ -120,28 +122,18 @@ fun HomeScreen(catList: List<CatItem>, onNavigateToAddCat: () -> Unit, onNavigat
             contentScale = ContentScale.Crop
         )
 
-        Surface(
+        // ✨ Clean version: No Surface, no background tint
+        Image(
+            painter = painterResource(id = R.drawable.nameapp),
+            contentDescription = "App Title Logo",
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 40.dp),
-            color = Color.Black.copy(alpha = 0.15f),
-            shape = RoundedCornerShape(50.dp)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Furr-niture",
-                    color = Color(0xFFF5F5DC),
-                    fontSize = 18.sp,
-                    letterSpacing = 1.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("🐱", fontSize = 14.sp)
-            }
-        }
+                .padding(top = 50.dp)
+                .fillMaxWidth(0.8f)
+                .height(170.dp),
+            contentScale = ContentScale.Fit
+        )
+
 
         IconButton(
             onClick = onNavigateToSettings,
@@ -157,43 +149,31 @@ fun HomeScreen(catList: List<CatItem>, onNavigateToAddCat: () -> Unit, onNavigat
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(x = 70.dp, y = 80.dp),
+                .offset(x = (99.dp), y = 120.dp),
             horizontalAlignment = Alignment.Start
         ) {
             Text(
                 "RESIDENTS: ${activeCats.size}",
                 color = Color.White,
-                fontSize = 8.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.shadow(1.dp)
             )
             Spacer(modifier = Modifier.height(2.dp))
 
             if (activeCats.isEmpty()) {
-                Text("House is empty", color = Color.White.copy(alpha = 0.8f), fontSize = 7.sp)
+                Text("   House is empty", color = Color.White.copy(alpha = 0.8f), fontSize = 7.sp)
             } else {
                 Text(
                     "• ${activeCats[currentCatIndex].name}",
                     color = Color.White.copy(alpha = 0.9f),
-                    fontSize = 7.sp,
+                    fontSize = 9.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
         }
 
-        Button(
-            onClick = onNavigateToAddCat,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 110.dp)
-                .height(56.dp)
-                .width(220.dp)
-                .shadow(8.dp, RoundedCornerShape(28.dp)),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8D6E63)),
-            shape = RoundedCornerShape(28.dp)
-        ) {
-            Text("Snap the Purr!", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
+        // ✨ "Snap the Purr" Button removed from here (it is now in the nav bar)
     }
 }
 
@@ -309,14 +289,46 @@ fun ScrapbookItem(cat: CatItem, onToggleRoom: () -> Unit, onDeletePermanently: (
 fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen) -> Unit) {
     Column {
         HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f), thickness = 1.dp)
-        NavigationBar(containerColor = Color.White, tonalElevation = 0.dp, modifier = Modifier.height(60.dp)) {
+        NavigationBar(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            modifier = Modifier.height(65.dp)
+        ) {
             items.forEach { item ->
                 val isSelected = item.screen == selected
+                // Determine which icon data to use based on selection state
+                val iconData = if (isSelected) item.selectedIcon else item.unselectedIcon
+
                 NavigationBarItem(
-                    icon = { Icon(imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon, contentDescription = item.title, modifier = Modifier.size(28.dp)) },
+                    icon = {
+                        // ✨ This block fixes the 'Argument type mismatch' error
+                        when (iconData) {
+                            // If it's a standard Material Icon (ImageVector)
+                            is ImageVector -> {
+                                Icon(
+                                    imageVector = iconData,
+                                    contentDescription = item.title,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                            // If it's your custom SVG (Int/Resource ID)
+                            is Int -> {
+                                Icon(
+                                    painter = painterResource(id = iconData),
+                                    contentDescription = item.title,
+                                    modifier = Modifier.size(26.dp),
+                                    tint = Color.Unspecified // Keeps your SVG's original colors
+                                )
+                            }
+                        }
+                    },
                     selected = isSelected,
                     onClick = { onSelect(item.screen) },
-                    colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent, selectedIconColor = WoodDark, unselectedIconColor = Color.Gray),
+                    colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = Color.Transparent,
+                        selectedIconColor = WoodDark,
+                        unselectedIconColor = Color.Gray
+                    ),
                     label = null
                 )
             }
