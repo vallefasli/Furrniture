@@ -9,6 +9,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -195,6 +198,8 @@ fun CatRoomScreen(
                                 DraggableCatSticker(
                                     cat = cat,
                                     initialPosition = initialPos,
+                                    isEditing = (catWithDeleteOption == cat),
+                                    onDeleteClick = { catToHide = cat },
                                     onLongPress = { catWithDeleteOption = cat },
                                     onDragStart = {
                                         isDraggingCat = true
@@ -224,23 +229,8 @@ fun CatRoomScreen(
                                             pixelVm.saveCatPosition(context, cat, finalPos.x, finalPos.y)
                                         }
                                         dragEdgeState = null
-                                    },
-                                    showName = isUiVisible
-                                )
-
-                                if (catWithDeleteOption == cat) {
-                                    Box(
-                                        modifier = Modifier
-                                            .offset { IntOffset(initialPos.x.roundToInt() + 90, initialPos.y.roundToInt() - 10) }
-                                            .size(32.dp)
-                                            .background(CozyCoral, CircleShape)
-                                            .shadow(4.dp, CircleShape)
-                                            .clickable { catToHide = cat },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Hide", tint = Color.White, modifier = Modifier.size(16.dp))
                                     }
-                                }
+                                )
                             }
                         }
                     }
@@ -270,7 +260,7 @@ fun CatRoomScreen(
                     Surface(
                         color = Color.Black.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(50),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
                             Text(text = roomNames.getOrElse(pagerState.currentPage) { "Room" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -288,7 +278,7 @@ fun CatRoomScreen(
                     },
                     color = Color.Black.copy(alpha = 0.5f),
                     shape = CircleShape,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
                 ) {
                     Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White, modifier = Modifier.padding(10.dp).size(24.dp))
                 }
@@ -313,20 +303,26 @@ enum class DragEdge { LEFT, RIGHT }
 fun DraggableCatSticker(
     cat: CatItem,
     initialPosition: Offset,
-    onLongPress: () -> Unit,
+    isEditing: Boolean,
+    onDeleteClick: () -> Unit,
     onDragStart: () -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: (Offset) -> Unit,
-    showName: Boolean
+    onLongPress: () -> Unit
 ) {
     var offset by remember { mutableStateOf(initialPosition) }
 
     Box(
         modifier = Modifier
             .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
-            .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }
             .pointerInput(Unit) {
-                detectDragGestures(onDragStart = { onDragStart() }, onDragEnd = { onDragEnd(offset) }) { change, dragAmount ->
+                detectTapGestures(onLongPress = { onLongPress() })
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDragEnd = { onDragEnd(offset) }
+                ) { change, dragAmount ->
                     change.consume()
                     offset += dragAmount
                     onDrag(offset)
@@ -335,17 +331,52 @@ fun DraggableCatSticker(
             .size(128.dp)
     ) {
         val path = cat.stickerPath ?: cat.imagePath ?: ""
-        AsyncImage(model = path, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
 
-        if (showName) {
+        // 1. The Cat Image
+        AsyncImage(
+            model = path,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
+
+        // 2. The Delete Button
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isEditing,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
+            Surface(
+                onClick = onDeleteClick,
+                shape = CircleShape,
+                color = CozyCoral,
+                border = BorderStroke(2.dp, Color.White),
+                shadowElevation = 4.dp,
+                modifier = Modifier.offset(x = 8.dp, y = (-8).dp).size(28.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+
+        // 3. The Name Tag
+        if (isEditing) {
             Text(
                 text = cat.name,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = CozyBrown,
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-12).dp)
+                    // ✨ FIXED: Align to TopStart (Left) so it doesn't hit the X button
+                    .align(Alignment.TopStart)
+                    .offset(x = (-4).dp, y = (-12).dp)
                     .shadow(4.dp, RoundedCornerShape(50))
                     .background(CozyCream, shape = RoundedCornerShape(50))
                     .border(1.dp, Color.White, RoundedCornerShape(50))

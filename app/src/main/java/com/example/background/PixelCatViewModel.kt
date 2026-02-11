@@ -35,9 +35,9 @@ class PixelCatViewModel : ViewModel() {
     var isProcessing by mutableStateOf(false)
     var statusMessage by mutableStateOf("Ready")
 
-    private val geminiApiKey = "AIzaSyBqVoI4ruA5lcEqCxewX9J-e-AN5m-nTJk"
-    private val pixelLabSecret = "e1ed6918-e7bf-48a7-8127-2613b7bee21f"
-    private val removeBgApiKey = "fVfhjdk3KXP1zmTqkjAC5hBG"
+    private val geminiApiKey = "AIzaSyBmseANTAOl3WY8PoxbTSoNUOXn66sq1jg"
+    private val pixelLabSecret = "7803f5a8-ab57-42a9-ba73-711fae9bfcce"
+    private val removeBgApiKey = "MTimxBKkoFKvmFRueUteW6Gr"
     private val pollinationsApiKey = "sk_WbnmIq8g9K1BVdo9GcGGdgxmPchgJZ3B"
 
     private val client = OkHttpClient.Builder()

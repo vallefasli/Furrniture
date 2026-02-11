@@ -243,8 +243,8 @@ fun ScrapbookItem(cat: CatItem, onToggleRoom: () -> Unit, onDeletePermanently: (
                     AsyncImage(model = cat.imagePath, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
                 Column(modifier = Modifier.padding(horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = cat.name, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive)
-                    Text(text = cat.breed ?: "Unknown Cat", fontSize = 14.sp, color = CozyCoral, fontWeight = FontWeight.Medium)
+                    Text(text = cat.name, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive)
+                    Text(text = cat.breed ?: "Unknown Cat", fontSize = 13.sp, color = CozyCoral, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
