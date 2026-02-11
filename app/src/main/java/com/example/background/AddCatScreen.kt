@@ -1,12 +1,16 @@
 package com.example.background
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import java.text.SimpleDateFormat
@@ -44,6 +49,7 @@ fun AddCatScreen(
 
     val date = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date()) }
 
+    // Media Launchers
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             bitmap = if (Build.VERSION.SDK_INT < 28) {
@@ -61,11 +67,21 @@ fun AddCatScreen(
         }
     }
 
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(context, "Permission Granted! Try clicking the button again.", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Permission Denied. This feature requires access to work.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("New Resident", fontSize = 30.sp, color = CozyBrown, fontWeight = FontWeight.Bold) },
-                // ✨ FIXED: Removed the navigationIcon (Back Arrow) entirely.
+                // Kept your original Transparent TopAppBar with no Back Arrow
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
@@ -79,6 +95,7 @@ fun AddCatScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Image Preview
             Card(
                 modifier = Modifier
                     .padding(vertical = 16.dp)
@@ -114,7 +131,20 @@ fun AddCatScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
-                    onClick = { cameraLauncher.launch() },
+                    onClick = {
+                        // Check if device even has a camera first
+                        val hasCamera = context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+                        if (!hasCamera) {
+                            Toast.makeText(context, "No camera found on this device", Toast.LENGTH_SHORT).show()
+                        } else {
+                            val status = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                            if (status == PackageManager.PERMISSION_GRANTED) {
+                                cameraLauncher.launch()
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = CozyPeach),
                     shape = RoundedCornerShape(12.dp)
@@ -123,7 +153,20 @@ fun AddCatScreen(
                 }
 
                 Button(
-                    onClick = { galleryLauncher.launch("image/*") },
+                    onClick = {
+                        val galleryPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            Manifest.permission.READ_MEDIA_IMAGES
+                        } else {
+                            Manifest.permission.READ_EXTERNAL_STORAGE
+                        }
+
+                        val status = ContextCompat.checkSelfPermission(context, galleryPermission)
+                        if (status == PackageManager.PERMISSION_GRANTED) {
+                            galleryLauncher.launch("image/*")
+                        } else {
+                            permissionLauncher.launch(galleryPermission)
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = CozyPeach),
                     shape = RoundedCornerShape(12.dp)
@@ -243,19 +286,19 @@ fun RescueOptionCard(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .border(
-                width = if (isSelected) 2.dp else 0.dp,
-                color = if (isSelected) CozyCoral else Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
-            ),
-        color = if (isSelected) CozyPeach.copy(alpha = 0.2f) else Color.White,
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
+        border = if (isSelected) BorderStroke(2.dp, CozyCoral) else null,
+        color = Color.White,
         shadowElevation = 2.dp
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (isSelected) CozyPeach.copy(alpha = 0.2f) else Color.Transparent)
+                .padding(12.dp)
+        ) {
             Text(title, fontWeight = FontWeight.Bold, color = CozyBrown)
             Text(description, fontSize = 11.sp, color = Color.Gray)
         }

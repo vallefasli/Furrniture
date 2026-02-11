@@ -65,7 +65,6 @@ class PixelCatViewModel : ViewModel() {
                 // 1. Save Original Photo
                 val originalPath = saveImageToInternalStorage(context, originalBitmap, "photo_${System.currentTimeMillis()}")
 
-                // ✨ STRICT RULE: Default to FALSE.
                 // We only change this to TRUE if we successfully generate a sticker below.
                 var canAddToRoom = false
 
@@ -86,7 +85,7 @@ class PixelCatViewModel : ViewModel() {
 
                 val resultText = response?.text?.trim() ?: "Cute Cat"
 
-                // 🛑 REJECTION LOGIC
+                // REJECTION LOGIC
                 if (resultText.contains("REJECTED", ignoreCase = true)) {
                     val objectName = resultText.substringAfter(":").trim()
                     statusMessage = "Not a feline! 🐾"
@@ -124,7 +123,6 @@ class PixelCatViewModel : ViewModel() {
                         else -> null
                     }
 
-                    // ✨ CRITICAL: Only if we have a processed sticker do we allow Room access
                     if (processedBitmap != null) {
                         finalStickerPath = saveImageToInternalStorage(context, processedBitmap, "sticker_${System.currentTimeMillis()}")
                         canAddToRoom = true
@@ -164,7 +162,7 @@ class PixelCatViewModel : ViewModel() {
         }
     }
 
-    // --- Helper Functions ---
+    // Helper Functions
 
     private suspend fun generatePollinationsArt(breed: String): Bitmap? = withContext(Dispatchers.IO) {
         val prompt = "pixel art sticker of a $breed cat, cozy home lighting, white background, high quality 8-bit"
@@ -228,7 +226,7 @@ class PixelCatViewModel : ViewModel() {
         return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
     }
 
-    // ✨ This function prevents user from manually adding Simple cats to the room later
+    // This function prevents user from manually adding Simple cats to the room later
     fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
         if (cat.stickerPath == cat.imagePath) {
             viewModelScope.launch(Dispatchers.Main) {

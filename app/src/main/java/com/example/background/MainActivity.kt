@@ -53,8 +53,6 @@ fun StoryKittyApp() {
     val catList by db.catDao().getAllCats().collectAsState(initial = emptyList())
     val pixelVm: PixelCatViewModel = viewModel()
     val scope = rememberCoroutineScope()
-
-    // ✨ FIXED: Residents now points to CollectionScreen, not AddCatScreen
     val navItems = listOf(
         NavItem("Home", R.drawable.logohome, R.drawable.logohome, CameraScreen),
         NavItem("Rescue", R.drawable.logocamera, R.drawable.logocamera, AddCatScreen),
@@ -311,13 +309,11 @@ fun ScrapbookItem(cat: CatItem, onToggleRoom: () -> Unit, onDeletePermanently: (
 @Composable
 fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen) -> Unit) {
     Column {
-        // ✨ This divider adds a subtle separation line so the bar doesn't disappear completely
         HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f), thickness = 1.dp)
 
         NavigationBar(
-            containerColor = CozyCream, // ✨ UPDATED: changed from Color.White to CozyCream
-            tonalElevation = 0.dp,      // Keeps it flat and clean
-            modifier = Modifier.height(65.dp)
+            containerColor = CozyCream,
+            tonalElevation = 0.dp, modifier = Modifier.height(65.dp)
         ) {
             items.forEach { item ->
                 val isSelected = item.screen == selected
@@ -346,9 +342,9 @@ fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen
                     selected = isSelected,
                     onClick = { onSelect(item.screen) },
                     colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = Color.Transparent, // Removes the pill shape indicator
-                        selectedIconColor = WoodDark,       // ✨ Matches your text/theme
-                        unselectedIconColor = Color.Gray.copy(alpha = 0.6f) // Softer gray for unselected
+                        indicatorColor = Color.Transparent,
+                        selectedIconColor = WoodDark,
+                        unselectedIconColor = Color.Gray.copy(alpha = 0.6f)
                     ),
                     label = null
                 )

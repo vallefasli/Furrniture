@@ -85,7 +85,7 @@ fun CatStoryScreen(
                             Text(cat.name, fontWeight = FontWeight.Bold, color = CozyBrown)
 
                             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                // ✨ BUTTON 1: HOME (RE-ADD TO ROOM)
+                                // BUTTON 1: HOME (RE-ADD TO ROOM)
                                 IconButton(
                                     onClick = { pixelVm.toggleCatRoomStatus(context, cat, !cat.isInRoom) },
                                     modifier = Modifier.background(if (cat.isInRoom) CozyPeach.copy(alpha = 0.3f) else CozyCoral.copy(alpha = 0.1f), CircleShape)
@@ -96,7 +96,7 @@ fun CatStoryScreen(
                                         tint = if (cat.isInRoom) CozyBrown else CozyCoral
                                     )
                                 }
-                                // ✨ BUTTON 2: TRASH (PERMANENT DELETE)
+                                // BUTTON 2: TRASH (PERMANENT DELETE)
                                 IconButton(
                                     onClick = { catToPermanentDelete = cat },
                                     modifier = Modifier.background(Color.Red.copy(alpha = 0.1f), CircleShape)

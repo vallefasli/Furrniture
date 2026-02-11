@@ -109,7 +109,7 @@ fun CatRoomScreen(
         if (!isMusicEnabled) mediaPlayer?.setVolume(0f, 0f) else mediaPlayer?.setVolume(1f, 1f)
     }
 
-    // --- MOVE TO STORAGE DIALOG ---
+    // MOVE TO STORAGE DIALOG
     if (catToHide != null) {
         Dialog(onDismissRequest = { catToHide = null }) {
             Card(
@@ -145,7 +145,6 @@ fun CatRoomScreen(
             catWithDeleteOption = null
         }
     ) {
-        // 📸 CONTENT BOX: Captured by GraphicsLayer
         Box(modifier = Modifier.fillMaxSize().drawWithContent {
             graphicsLayer.record {
                 this@drawWithContent.drawContent()
@@ -249,7 +248,7 @@ fun CatRoomScreen(
             }
         }
 
-        // --- NAVIGATION INDICATORS (DURING DRAG) ---
+        // NAVIGATION INDICATORS (DURING DRAG)
         AnimatedVisibility(visible = isDraggingCat && dragEdgeState == DragEdge.RIGHT, modifier = Modifier.align(Alignment.CenterEnd), enter = fadeIn(), exit = fadeOut()) {
             Box(modifier = Modifier.width(100.dp).fillMaxHeight().background(Color.Black.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
                 val isNextLocked = (pagerState.currentPage + 1) >= unlockedCount
@@ -262,7 +261,7 @@ fun CatRoomScreen(
             }
         }
 
-        // --- OVERLAY UI (VISIBLE TOGGLE) ---
+        // OVERLAY UI (VISIBLE TOGGLE)
         AnimatedVisibility(visible = isUiVisible, modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxSize()) {
 
@@ -279,7 +278,7 @@ fun CatRoomScreen(
                     }
                 }
 
-                // SHARE BUTTON (PILL STYLE)
+                // SHARE BUTTON
                 Surface(
                     modifier = Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 16.dp).clickable {
                         scope.launch {
