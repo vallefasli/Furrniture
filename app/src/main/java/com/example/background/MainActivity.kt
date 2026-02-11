@@ -3,10 +3,8 @@ package com.example.background
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -20,7 +18,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -57,12 +54,12 @@ fun StoryKittyApp() {
     val pixelVm: PixelCatViewModel = viewModel()
     val scope = rememberCoroutineScope()
 
-    // ✨ Updated NavItems: Added Rescue as the 4th item
+    // ✨ FIXED: Residents now points to CollectionScreen, not AddCatScreen
     val navItems = listOf(
-        NavItem("Home", Icons.Filled.Home, Icons.Outlined.Home, CameraScreen),
+        NavItem("Home", R.drawable.logohome, R.drawable.logohome, CameraScreen),
         NavItem("Rescue", R.drawable.logocamera, R.drawable.logocamera, AddCatScreen),
-        NavItem("Residents", R.drawable.logopet, R.drawable.logopet, AddCatScreen),
-        NavItem("Rooms", Icons.Filled.Place, Icons.Outlined.Place, CatStoryScreen)
+        NavItem("Residents", R.drawable.logopet, R.drawable.logopet, CollectionScreen), // <--- CHANGED THIS
+        NavItem("Rooms", R.drawable.logolocation, R.drawable.logolocation, CatStoryScreen),
     )
 
     MaterialTheme {
@@ -116,15 +113,14 @@ fun HomeScreen(catList: List<CatItem>, onNavigateToSettings: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
-            painter = painterResource(id = R.drawable.revisedmain),
-            contentDescription = null,
+            painter = painterResource(id = R.drawable.homescreen),
+            contentDescription = "Furr-niture",
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
 
-        // ✨ Clean version: No Surface, no background tint
         Image(
-            painter = painterResource(id = R.drawable.nameapp),
+            painter = painterResource(id = R.drawable.furr_niture),
             contentDescription = "App Title Logo",
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -172,8 +168,6 @@ fun HomeScreen(catList: List<CatItem>, onNavigateToSettings: () -> Unit) {
                 )
             }
         }
-
-        // ✨ "Snap the Purr" Button removed from here (it is now in the nav bar)
     }
 }
 
@@ -212,7 +206,7 @@ fun CollectionScreen(cats: List<CatItem>, pixelVm: PixelCatViewModel) {
 
     Box(modifier = Modifier.fillMaxSize().background(CozyCream)) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Text("Meow-ments!", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive, modifier = Modifier.padding(bottom = 24.dp, top = 8.dp).align(Alignment.CenterHorizontally))
+            Text("Meow-ments!", fontSize = 60.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive, modifier = Modifier.padding(bottom = 24.dp, top = 8.dp).align(Alignment.CenterHorizontally))
 
             if (cats.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -251,36 +245,65 @@ fun ScrapbookItem(cat: CatItem, onToggleRoom: () -> Unit, onDeletePermanently: (
                     AsyncImage(model = cat.imagePath, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }
                 Column(modifier = Modifier.padding(horizontal = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = cat.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive)
-                    Text(text = cat.breed ?: "Unknown Cat", fontSize = 11.sp, color = CozyCoral, fontWeight = FontWeight.Medium)
+                    Text(text = cat.name, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = CozyBrown, fontFamily = FontFamily.Cursive)
+                    Text(text = cat.breed ?: "Unknown Cat", fontSize = 14.sp, color = CozyCoral, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Place, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(10.dp))
                             Spacer(modifier = Modifier.width(2.dp))
-                            Text(text = cat.location, fontSize = 10.sp, color = Color.Gray)
+                            Text(text = cat.location, fontSize = 13.sp, color = Color.Gray)
                         }
-                        Text(text = cat.date, fontSize = 9.sp, color = Color.LightGray)
+                        Text(text = cat.date, fontSize = 12.sp, color = Color.LightGray)
                     }
                 }
                 HorizontalDivider(color = CozyCream, thickness = 1.dp, modifier = Modifier.padding(top = 6.dp, start = 12.dp, end = 12.dp))
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = onDeletePermanently, modifier = Modifier.size(28.dp)) {
                         Icon(Icons.Outlined.Delete, contentDescription = "Delete", tint = Color.LightGray, modifier = Modifier.size(16.dp))
                     }
+
                     if (isRoomReady) {
-                        TextButton(onClick = onToggleRoom, contentPadding = PaddingValues(0.dp)) {
-                            Text(if (cat.isInRoom) "🏠 In Room" else "💤 Sleeping", color = if (cat.isInRoom) CozyBrown else CozyCoral, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        TextButton(
+                            onClick = onToggleRoom,
+                            contentPadding = PaddingValues(0.dp),
+                            // ✨ CHANGE HERE: Added padding to move it left
+                            modifier = Modifier.padding(end = 45.dp)
+                        ) {
+                            Text(
+                                if (cat.isInRoom) "🏠 In Room" else "💤 Sleeping",
+                                color = if (cat.isInRoom) CozyBrown else CozyCoral,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     } else {
-                        Text("Scrapbook Only", color = Color.LightGray, fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
+                        Text("Scrapbook Only", color = Color.LightGray, fontSize = 11.sp, modifier = Modifier.padding(end = 16.dp))
                     }
                 }
             }
         }
         Box(modifier = Modifier.align(Alignment.TopCenter).width(50.dp).height(16.dp).background(CozyPeach.copy(alpha = 0.6f)))
         if (cat.stickerPath != null && isRoomReady) {
-            AsyncImage(model = cat.stickerPath, contentDescription = "Sticker", modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 6.dp).size(48.dp).rotate(-10f).shadow(2.dp, CircleShape).background(Color.White, CircleShape).padding(2.dp))
+            AsyncImage(
+                model = cat.stickerPath,
+                contentDescription = "Sticker",
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 6.dp, y = 6.dp)
+                    .size(48.dp)
+                    .rotate(-10f)
+                    .shadow(2.dp, CircleShape)
+                    .background(Color.White, CircleShape)
+                    .padding(2.dp)
+            )
         }
     }
 }
@@ -288,22 +311,21 @@ fun ScrapbookItem(cat: CatItem, onToggleRoom: () -> Unit, onDeletePermanently: (
 @Composable
 fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen) -> Unit) {
     Column {
+        // ✨ This divider adds a subtle separation line so the bar doesn't disappear completely
         HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f), thickness = 1.dp)
+
         NavigationBar(
-            containerColor = Color.White,
-            tonalElevation = 0.dp,
+            containerColor = CozyCream, // ✨ UPDATED: changed from Color.White to CozyCream
+            tonalElevation = 0.dp,      // Keeps it flat and clean
             modifier = Modifier.height(65.dp)
         ) {
             items.forEach { item ->
                 val isSelected = item.screen == selected
-                // Determine which icon data to use based on selection state
                 val iconData = if (isSelected) item.selectedIcon else item.unselectedIcon
 
                 NavigationBarItem(
                     icon = {
-                        // ✨ This block fixes the 'Argument type mismatch' error
                         when (iconData) {
-                            // If it's a standard Material Icon (ImageVector)
                             is ImageVector -> {
                                 Icon(
                                     imageVector = iconData,
@@ -311,13 +333,12 @@ fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
-                            // If it's your custom SVG (Int/Resource ID)
                             is Int -> {
                                 Icon(
                                     painter = painterResource(id = iconData),
                                     contentDescription = item.title,
                                     modifier = Modifier.size(26.dp),
-                                    tint = Color.Unspecified // Keeps your SVG's original colors
+                                    tint = Color.Unspecified
                                 )
                             }
                         }
@@ -325,9 +346,9 @@ fun InstagramBottomBar(items: List<NavItem>, selected: Screen, onSelect: (Screen
                     selected = isSelected,
                     onClick = { onSelect(item.screen) },
                     colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = Color.Transparent,
-                        selectedIconColor = WoodDark,
-                        unselectedIconColor = Color.Gray
+                        indicatorColor = Color.Transparent, // Removes the pill shape indicator
+                        selectedIconColor = WoodDark,       // ✨ Matches your text/theme
+                        unselectedIconColor = Color.Gray.copy(alpha = 0.6f) // Softer gray for unselected
                     ),
                     label = null
                 )

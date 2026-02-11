@@ -2,29 +2,22 @@ package com.example.background
 
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
-import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -47,8 +40,6 @@ fun AddCatScreen(
     var name by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    // ✨ State for the new Rescue Modes
     var selectedMode by remember { mutableStateOf(RescueMode.PIXEL_LAB) }
 
     val date = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date()) }
@@ -73,12 +64,8 @@ fun AddCatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("New Resident", color = CozyBrown, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onCatSaved) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Exit", tint = CozyBrown)
-                    }
-                },
+                title = { Text("New Resident", fontSize = 30.sp, color = CozyBrown, fontWeight = FontWeight.Bold) },
+                // ✨ FIXED: Removed the navigationIcon (Back Arrow) entirely.
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
@@ -92,8 +79,6 @@ fun AddCatScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ✨ UPDATED IMAGE PREVIEW CARD
-            // Logic: If bitmap exists, fit width and use image aspect ratio. Else use square placeholder.
             Card(
                 modifier = Modifier
                     .padding(vertical = 16.dp)
@@ -116,7 +101,7 @@ fun AddCatScreen(
                             model = bitmap,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit // ✨ Fits the image perfectly without cropping
+                            contentScale = ContentScale.Fit
                         )
                     } else {
                         Text("No Photo", color = CozyBrown.copy(alpha = 0.3f), fontWeight = FontWeight.Bold)
@@ -124,7 +109,6 @@ fun AddCatScreen(
                 }
             }
 
-            // Dual Upload Options
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -150,7 +134,6 @@ fun AddCatScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ✨ Rescue Mode Selection Section
             Text(
                 "Select Method",
                 modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp),
@@ -187,7 +170,6 @@ fun AddCatScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Details Inputs
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(24.dp),
@@ -224,7 +206,6 @@ fun AddCatScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Complete Rescue Button
             Button(
                 onClick = {
                     bitmap?.let {

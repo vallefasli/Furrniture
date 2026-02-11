@@ -35,9 +35,9 @@ class PixelCatViewModel : ViewModel() {
     var isProcessing by mutableStateOf(false)
     var statusMessage by mutableStateOf("Ready")
 
-    private val geminiApiKey = "AIzaSyBOgtNNFTt9BGueDOhVmSKabUfozppK6LU"
+    private val geminiApiKey = "AIzaSyBqVoI4ruA5lcEqCxewX9J-e-AN5m-nTJk"
     private val pixelLabSecret = "e1ed6918-e7bf-48a7-8127-2613b7bee21f"
-    private val removeBgApiKey = "J6MA5aUb4NyKkAcBCwMHJeZK"
+    private val removeBgApiKey = "fVfhjdk3KXP1zmTqkjAC5hBG"
     private val pollinationsApiKey = "sk_WbnmIq8g9K1BVdo9GcGGdgxmPchgJZ3B"
 
     private val client = OkHttpClient.Builder()
@@ -62,14 +62,19 @@ class PixelCatViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
+                // 1. Save Original Photo
                 val originalPath = saveImageToInternalStorage(context, originalBitmap, "photo_${System.currentTimeMillis()}")
-                var detectedBreed = "Cute Cat"
+
+                // ✨ STRICT RULE: Default to FALSE.
+                // We only change this to TRUE if we successfully generate a sticker below.
+                var canAddToRoom = false
+
+                // Default sticker path is the original image (for Scrapbook)
                 var finalStickerPath: String? = originalPath
-                var canAddToRoom = true
+                var detectedBreed = "Cute Cat"
 
-                // ✨ 2. THE GATEKEEPER: Broader "Feline" Check
+                // 2. Identify Feline
                 val aiBitmap = Bitmap.createScaledBitmap(originalBitmap, 512, 512, true)
-
                 val response = try {
                     geminiModel.generateContent(content {
                         image(aiBitmap)
@@ -84,29 +89,25 @@ class PixelCatViewModel : ViewModel() {
                 // 🛑 REJECTION LOGIC
                 if (resultText.contains("REJECTED", ignoreCase = true)) {
                     val objectName = resultText.substringAfter(":").trim()
-
                     statusMessage = "Not a feline! 🐾"
                     isProcessing = false
-
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "Wait! That looks like a $objectName! 🐶 This app is for felines only!", Toast.LENGTH_LONG).show()
                     }
-
                     File(originalPath).delete()
                     return@launch
                 }
 
                 detectedBreed = resultText
 
-                // 3. Generate Sticker
+                // 3. Generate Sticker (ONLY if NOT Simple mode)
                 if (mode != RescueMode.SIMPLE) {
                     statusMessage = "Designing Sticker..."
                     val processedBitmap: Bitmap? = when (mode) {
-                        RescueMode.BREED_ONLY -> {
-                            removeBackground(originalBitmap)
-                        }
+                        RescueMode.BREED_ONLY -> removeBackground(originalBitmap)
                         RescueMode.POLLINATION -> {
                             val pollinated = generatePollinationsArt(detectedBreed)
+                            // If pollination fails, fallback to removing BG from original
                             if (pollinated != null) removeBackground(pollinated) else removeBackground(originalBitmap)
                         }
                         RescueMode.PIXEL_LAB -> {
@@ -115,16 +116,19 @@ class PixelCatViewModel : ViewModel() {
                                 val bytes = Base64.decode(base64Sticker, Base64.DEFAULT)
                                 val pixelBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                                 if (pixelBitmap != null) removeBackground(pixelBitmap) else removeBackground(aiBitmap)
-                            } else removeBackground(aiBitmap)
+                            } else {
+                                // Fallback if Pixel Lab fails
+                                removeBackground(aiBitmap)
+                            }
                         }
                         else -> null
                     }
 
-                    processedBitmap?.let {
-                        finalStickerPath = saveImageToInternalStorage(context, it, "sticker_${System.currentTimeMillis()}")
+                    // ✨ CRITICAL: Only if we have a processed sticker do we allow Room access
+                    if (processedBitmap != null) {
+                        finalStickerPath = saveImageToInternalStorage(context, processedBitmap, "sticker_${System.currentTimeMillis()}")
+                        canAddToRoom = true
                     }
-                } else {
-                    canAddToRoom = false
                 }
 
                 // 4. Save to Database
@@ -136,19 +140,18 @@ class PixelCatViewModel : ViewModel() {
                         breed = detectedBreed,
                         imagePath = originalPath,
                         stickerPath = finalStickerPath,
-                        isInRoom = canAddToRoom,
+                        isInRoom = canAddToRoom, // This uses the strict logic above
                         roomIndex = 0,
-                        posX = 200f, // ✨ Default room position
+                        posX = 200f,
                         posY = 600f
                     )
                 )
 
-                // ✨ UI Feedback and Sequenced Navigation
                 withContext(Dispatchers.Main) {
                     statusMessage = "Welcome Home! 🛋️"
-                    delay(800) // Brief delay so user sees the success message
+                    delay(800)
                     isProcessing = false
-                    onComplete() // Trigger navigation back to scrapbook
+                    onComplete()
                 }
 
             } catch (e: Exception) {
@@ -160,6 +163,8 @@ class PixelCatViewModel : ViewModel() {
             }
         }
     }
+
+    // --- Helper Functions ---
 
     private suspend fun generatePollinationsArt(breed: String): Bitmap? = withContext(Dispatchers.IO) {
         val prompt = "pixel art sticker of a $breed cat, cozy home lighting, white background, high quality 8-bit"
@@ -223,11 +228,13 @@ class PixelCatViewModel : ViewModel() {
         return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
     }
 
+    // ✨ This function prevents user from manually adding Simple cats to the room later
     fun toggleCatRoomStatus(context: Context, cat: CatItem, inRoom: Boolean) {
         if (cat.stickerPath == cat.imagePath) {
             viewModelScope.launch(Dispatchers.Main) {
                 Toast.makeText(context, "Simple photos can't go in the Room! 🖼️", Toast.LENGTH_SHORT).show()
             }
+            // Force it to remain false
             viewModelScope.launch(Dispatchers.IO) {
                 CatDatabase.getDatabase(context).catDao().updateCat(cat.copy(isInRoom = false))
             }
