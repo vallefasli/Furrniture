@@ -245,6 +245,14 @@ class PixelCatViewModel : ViewModel() {
 
     fun deleteCatPermanently(context: Context, cat: CatItem) {
         viewModelScope.launch(Dispatchers.IO) {
+            // 1. Delete the physical files first
+            cat.imagePath?.let { path -> File(path).delete() }
+            cat.stickerPath?.let { path ->
+                // Check if sticker is different from image so we don't delete it twice
+                if (path != cat.imagePath) File(path).delete()
+            }
+
+            // 2. Delete from DB
             CatDatabase.getDatabase(context).catDao().deleteCat(cat)
         }
     }
